@@ -1,0 +1,232 @@
+---
+title: "IRIS Data Capstone Project"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+Introduction
+
+For the IRIS project, we use the iris dataset from Kaggle. We aim to analyse the data and predict species on the basis of sepal and petal size by classification model. Accuracy will be used to evaluate how close our predictions.
+There are 150 observations, Model will use 80% records to train the model and remaining 20% data will be used to test its performance. It includes three iris species with 50 samples each as well as some properties about each flower. 
+This is a calssification problem. samples belong to two or more classes and we want to learn from already labeled data how to predict the class of unlabeled data.
+
+During this exercise we will perform the following:
+-Load and Check Data
+-Split the data
+-Summarize data
+-Visualize Data
+-Build Models
+-Make Prediction
+
+1. Load and Check Data
+```{r}
+#Load libraries
+library(tidyverse)
+library(kableExtra)
+library(gridExtra)
+library(caret)
+#Load dataset
+
+iris <- read.csv('Iris.csv')
+```
+
+```{r}
+#Checking dimensions,  
+dim(iris)
+```
+iris data have 150 observations & 6 features
+
+```{r}
+#checking count of each species
+table(iris$Species)
+```
+All the three species have equal number of observation.
+
+2. Split the Data
+We will split the loaded dataset into two, 80% of which we will use to train our models and 20% will be used to test our model.
+```{r}
+# Split the data
+iris <- iris[,2:6]
+sample <- createDataPartition(iris$Species, p=0.80, list=FALSE)
+
+# Create training data
+iris_train <- iris[sample,]
+str(iris_train)
+```
+
+```{r}
+# Create test data
+iris_test <- iris[-sample,]
+str(iris_test)
+```
+The training dataset has 120 observations and testing data has 30.
+
+3. Summarize Data
+a) Instances by Class
+```{r}
+# Summarize the class distribution
+percentage <- prop.table(table(iris_train$Species))*100
+cbind(Freq = table(iris_train$Species), Percentage = percentage)
+```
+Observation- We can see that each class has the same number of instances (40 or 33% of the dataset).
+
+b) Summarize the dataset
+
+```{r}
+#Checking iris datset summary
+summary(iris_train)
+```
+Observation- We can see that all of the numerical values have the same scale (centimeters) and similar ranges [0,8] centimeters.No missing value in the datset
+
+```{r}
+#Average length & width by species
+temp_df <- iris_train %>% group_by(Species) %>% summarize(mean(SepalLengthCm),mean(SepalWidthCm),mean(PetalLengthCm),mean(PetalWidthCm))
+kable(temp_df,align = 'c',col.names = c('Species','Avg Sepal Length','Avg Sepal Width','Avg Petal Length','Avg Petal Width')) 
+
+```
+
+4. Visualize Data
+
+a) Univariate plots
+Let's understand the input variable and output variable separately
+```{r}
+input_var <- iris_train[,1:4]
+output_var <- iris_train[,5]
+```
+
+Input varibale plot:
+```{r}
+par(mfrow=c(1,4))
+for (i in 1:4) {
+  boxplot(input_var[i], main=names(iris_train)[i])
+}
+```
+
+Output variable plot
+
+```{r}
+qplot(output_var, xlab='Species', ylab = 'Count')
+iris_train
+```
+
+b) Multivariate Plots
+
+Scatter Plot:
+Let's look at scatter plots of all pairs of attributes and color the points by class.
+
+```{r}
+featurePlot(x=input_var, y=output_var, plot='ellipse', auto.key=list(columns=3))
+```
+
+Box Plots:
+Let's look at the box plots of each attribute, broken down into separate plots for each class
+```{r}
+featurePlot(x=input_var, y=output_var, plot='box', auto.key=list(columns=3))
+```
+
+Density Plots;
+
+Let's look at the distribution of each attribute, broken down into separate plots for each class using density plots
+
+```{r}
+featurePlot(x=input_var, y=output_var, 
+            plot='density', 
+            scales = list(x = list(relation='free'),
+                          y = list(relation='free')),
+            auto.key=list(columns=3))
+```
+
+Observation- Like boxplots, we can see the difference in distribution of each attribute by class value. We can also see the bell curve of each attribute.
+
+
+
+```{r}
+#Scatter plot between Sepel Length & Sepel Width:
+ggplot(iris, aes(x=SepalLengthCm, y=SepalWidthCm, color=Species)) + geom_point() + labs(title="Scatterplot", x="Sepal Length", y="Sepal Width")
+```
+The above graph shows relationship between the sepal length and width. Now we will check relationship between the petal length and width.
+
+```{r}
+#Scatter plot between Petal Length & Petal Width:
+ggplot(iris, aes(x=PetalLengthCm, y=PetalWidthCm, color=Species)) + geom_point() + labs(title="Scatterplot", x="Petal Length", y="Petal Width") 
+```
+As we can see that the Petal Features are giving a better cluster division compared to the Sepal features. This is an indication that the Petals can help in better and accurate Predictions over the Sepal. We will check that later.
+
+5. Build Models
+
+We will perform the below models to predict species and will compare the accuracy and finds the best model.
+- Linear Discriminant Analysis (LDA)
+- Classification and Regression Trees (CART)
+- k-nearest Neighbours (KNN)
+- Support Vector Machines (SVM)
+- Random FOrest (RF)
+
+EValuate algorithms and pick the best model:
+
+We will use 10-fold cross validation to estimate accuracy. This will split our dataset into 10 parts, train in 9 and test on 1 and repeat for all combinations of train-test splits.
+
+We will use a mixture of simple linear (LDA), nonlinear (CART, KNN) and complex nonlinear methods (SVM, RF).
+
+```{r}
+control <- trainControl(method='cv', number=10)
+metric <- 'Accuracy'
+
+# Linear Discriminant Analysis (LDA)
+set.seed(101)
+fit.lda <- train(Species~., data=iris_train, method='lda', 
+                  trControl=control, metric=metric)
+
+
+# Classification and Regression Trees (CART)
+set.seed(101)
+fit.cart <- train(Species~., data=iris_train, method='rpart', 
+                  trControl=control, metric=metric)
+
+
+# k-Nearest Neighbors (KNN)
+set.seed(101)
+fit.knn <- train(Species~., data=iris_train, method='knn', 
+                  trControl=control, metric=metric)
+
+# Support Vector Machines (SVM) with a radial kernel
+set.seed(101)
+fit.svm <- train(Species~., data=iris_train, method='svmRadial', 
+                  trControl=control, metric=metric)
+
+# Random Forest (RF)
+set.seed(101)
+fit.rf <- train(Species~., data=iris_train, method='ranger', 
+                  trControl=control, metric=metric)
+```
+
+```{r}
+# Compare the results of these algorithms
+iris.results <- resamples(list(lda=fit.lda, cart=fit.cart, knn=fit.knn, svm=fit.svm, rf=fit.rf))
+
+# Table Comparison
+summary(iris.results)
+```
+
+```{r}
+# Let's plot the results of these algorithms:
+bwplot(iris.results)
+```
+
+
+```{r}
+dotplot(iris.results)
+```
+Observation- Looking at the results and plots, we can say that mean accuracy of LDA and KNN model is better than other models. Lets use LDA model to make final predictions.
+
+6. Make Prediction
+We will use the test data and LDA model to make final predictions.
+
+a) Predict on test data
+
+```{r}
+iris_prediction <- predict(fit.lda, iris_test)
+confusionMatrix(iris_prediction, iris_test$Species)
+```
+
+We can see that the accuracy is 100%. It was a small validation dataset, but this result is within our expected margin of 97% +/-4% suggesting we may have an accurate and a reliably accurate model.
